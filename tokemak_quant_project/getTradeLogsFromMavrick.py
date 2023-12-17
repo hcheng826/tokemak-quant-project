@@ -1,0 +1,106 @@
+import os
+from dotenv import load_dotenv
+from web3 import Web3
+import json
+import csv
+
+# https://github.com/ethers-io/ethers.js/blob/master/packages/providers/src.ts/alchemy-provider.ts#L16-L21
+# NOTE: likely to get rate limited
+default_provider_url = "https://eth-mainnet.g.alchemy.com/v2/_gg7wSSi0KMBsdKnGVfHDueq6xMB9EkC"
+start_block = 18145020
+end_block = 18780676
+
+def main():
+    load_dotenv()
+    w3 = Web3(Web3.HTTPProvider(os.getenv('PROVIDER_URL', default_provider_url)))
+    # Check if the connection is successful
+    if not w3.isConnected():
+        print("Failed to connect to Ethereum node.")
+        exit()
+
+    # Smart contract address and ABI (replace with your contract details)
+    contract_address = '0x0CE176E1b11A8f88a4Ba2535De80E81F88592bad'
+    contract_abi = """
+    [
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "name": "sender",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "recipient",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "tokenAIn",
+                "type": "bool"
+            },
+            {
+                "indexed": false,
+                "name": "exactOutput",
+                "type": "bool"
+            },
+            {
+                "indexed": false,
+                "name": "amountIn",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "name": "amountOut",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "name": "activeTick",
+                "type": "int32"
+            }
+        ],
+            "name": "Swap",
+            "type": "event"
+    }
+    ]
+    """
+
+    # Create contract instance
+    contract = w3.eth.contract(address=contract_address, abi=json.loads(contract_abi))
+
+    # Event filter (replace 'YourEventName' with the actual event name you are interested in)
+    logs = contract.events.Swap().getLogs(fromBlock=start_block, toBlock=end_block)
+    # event_filter = contract.events.TokenExchange().createFilter(fromBlock='latest')
+
+    # Writing data to CSV
+    filename = 'mavrick_swap_logs.csv'
+
+    with open(filename, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        # Writing headers corresponding to the Swap event
+        writer.writerow(['sender', 'recipient', 'tokenAIn', 'exactOutput', 'amountIn', 'amountOut', 'activeTick', 'event', 'logIndex', 'transactionIndex', 'transactionHash', 'address', 'blockHash', 'blockNumber'])
+
+        for log in logs:
+            writer.writerow([
+                log.args.sender,
+                log.args.recipient,
+                log.args.tokenAIn,
+                log.args.exactOutput,
+                log.args.amountIn,
+                log.args.amountOut,
+                log.args.activeTick,
+                log.event,
+                log.logIndex,
+                log.transactionIndex,
+                log.transactionHash.hex(),
+                log.address,
+                log.blockHash.hex(),
+                log.blockNumber
+            ])
+
+        print("Logs have been written to", filename)
+
+if __name__ == '__main__':
+    main()
